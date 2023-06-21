@@ -1,0 +1,9 @@
+.vscode/
+venv/
+
+captures/
+output/
+
+__pycache__
+*.pyc
+*.xml
