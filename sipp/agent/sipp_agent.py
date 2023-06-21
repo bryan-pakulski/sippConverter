@@ -1,68 +1,71 @@
-from sipp.sip import Methods
-from sipp.sip import Actions
+import sipp.agent
+from sipp.sip_methods import Methods
+from sipp.sipp_actions import Actions
 
 import xmlformatter
 
-class sipp_agent:
+# This agent class works to convert the dictionary information passed from the parser into XML that SIPP can understand
 
-    rrs_string = "rrs=\"true\""
 
-    def __init__(self, number, scenario_name="SIPp Scenario"):
-        
+class SIPP_Agent:
+
+    # SIP messsages we will record route on
+    RRS_CODES = [
+        "183",
+        "180",
+        "INVITE"
+    ]
+
+    # XML Tag to record route
+    RECORD_ROUTE = "rrs=\"true\""
+
+    def __init__(self, number, scenario_name, action_set):
+
         self.number = number
         self.scenario_name = scenario_name
 
-        # SIPP Scenario as string
+        # SIPP Scenario container
         self.scenario = []
 
-        # Method generator
+        # XML Generators
+        self.sip_actions = Actions(action_set)
         self.sip_methods = Methods()
 
-        # Flag to save routes and re-use in [routes] config
-        self.saved_routes = False
-
-        # Increments for each action, allows us to use branch automatically
-        self.counter = 0
-
-        # Store routes / via headers on UAS side
+        self.have_saved_routes = False
+        self.message_counter = 0
         self.use_actions = False
-        self.actions = None
 
     def add_scenario(self, content):
         self.scenario.append(content)
 
     # Keep track of our method increments, useful for responding to correct branch
     def increment(self):
-        self.counter += 1
-        #self.wait(200)
+        self.message_counter += 1
 
+    def get_counter(self):
+        return self.message_counter
+
+    # Check if we have a sip_method function defined for this method
     def is_method(self, method):
         return method in self.sip_methods.call
-    
-    def use_rrs(self, response_code):
-        RRS_CODES = [
-            "183",
-            "180",
-            "INVITE"
-        ]
-        if "183" in response_code or "180" in response_code:
-            self.saved_routes = True
 
+    # Determine if we should use Record-Route for a given response code
+    def use_rrs(self, response_code):
+
+        for code in self.RRS_CODES:
+            if (code in response_code):
+                self.have_saved_routes = True
+
+        # TODO: in the apply class make it so that actions can be defined per method i.e. lookup table
+        # We want to apply actions on our invite
         if "INVITE" in response_code:
-            self.saved_routes = True
             self.use_actions = True
-            self.actions = Actions("BASIC")
-        
-        for code in RRS_CODES:
-            if code in response_code:
-                return True
-        return False
+
+        return self.have_saved_routes
 
     def send(self, method, arguments):
-        if (self.saved_routes):
+        if (self.have_saved_routes):
             arguments["routes"] = "[routes]"
-        else:
-            arguments["routes"] = ""
 
         self.add_scenario(f"""
         <send>
@@ -73,15 +76,15 @@ class sipp_agent:
 
     def recv(self, method):
         self.add_scenario(f"""
-        <recv request="{method}" {self.rrs_string if self.use_rrs(method) else ""}>
-        {self.actions.action if self.use_rrs(method) else ""}
+        <recv request="{method}" {self.RECORD_ROUTE if self.use_rrs(method) else ""}>
+        {self.sip_actions.xml() if self.use_rrs(method) else ""}
         </recv>
         """)
         self.increment()
 
-    def recv_response(self, response_code, optional="false"):        
+    def recv_response(self, response_code, optional="false"):
         self.add_scenario(f"""
-        <recv response="{response_code}" {self.rrs_string if self.use_rrs(response_code) else ""}
+        <recv response="{response_code}" {self.RECORD_ROUTE if self.use_rrs(response_code) else ""}
             optional="{optional}">
         </recv>
         """)
@@ -92,10 +95,10 @@ class sipp_agent:
         <send>
             <![CDATA[
                 {status_line}
-                {self.actions.get_via() if self.actions.use_via(status_line) else "[last_Via:]"}
+                {self.sip_actions.get_via() if self.sip_actions.use_via(status_line) else "[last_Via:]"}
                 [last_From:]
                 [last_To:];{"tag=[$local_tag]" if self.use_actions else "tag=[call_number]"}
-                {self.actions.get_routes() if "200" not in status_line else "[routes]"}
+                {self.sip_actions.get_routes() if "200" not in status_line else "[routes]"}
                 [last_Call-ID:]
                 {"CSeq: [$invite_cseq]" if self.use_actions and "200" in status_line else "[last_CSeq:]"}
                 Contact: <sip:[local_ip]:[local_port];transport=[transport]>
@@ -147,7 +150,8 @@ class sipp_agent:
                 elif index > sdp_start and (line.isspace() or len(line.lstrip()) == 0):
                     continue
                 else:
-                    output += '\n' + (' ' * (current_indentation + INDENTATION) + line.lstrip())
+                    output += '\n' + \
+                        (' ' * (current_indentation + INDENTATION) + line.lstrip())
             else:
                 output += '\n' + (line.lstrip())
 
@@ -157,7 +161,7 @@ class sipp_agent:
         xml_header = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\" ?>\n\n"
         header = f"<scenario name=\"{self.scenario_name}\">"
         header_close = "\n</scenario>"
-        
+
         output_string = ""
         output_string += xml_header
         output_string += header
@@ -165,8 +169,7 @@ class sipp_agent:
         for action in self.scenario:
             output_string += self.parse_scenario(action)
         output_string += header_close
-        formatter = xmlformatter.Formatter(indent="4", correct = True)
+        formatter = xmlformatter.Formatter(indent="4", correct=True)
 
         with open(outfile, 'w') as output:
             output.write(formatter.format_string(output_string).decode())
-            

@@ -15,66 +15,23 @@ MESSAGE = Transports Instant Messages
 UPDATE = Modifies the state of a session
 """
 
-# It is assumed that each function is passed an arguments dictionary with the following values, they can be empty
-"""
-    arguments = {
-        "caller": "",
-        "callee": "",
-        "scenario_name": "",
-        "subscriber": "",
-        "event": ""
-    }
-"""
+SIP_HEADERS = [
+    "INVITE",
+    "ACK",
+    "BYE",
+    "CANCEL",
+    "REGISTER",
+    "OPTIONS",
+    "PRACK",
+    "SUBSCRIBE",
+    "NOTIFY",
+    "PUBLISH",
+    "INFO",
+    "REFER",
+    "MESSAGE",
+    "UPDATE"
+]
 
-class Actions:
-
-    # This assumes a hop through kamailio 
-    # The typical routing would be testbox -> kamailio -> oca
-    def __basicKamActions(self):
-        self.via = 2
-        self.routes = 1
-
-        return """
-        <action>
-            <ereg regexp=".*" search_in="hdr" header="CSeq:"  assign_to="invite_cseq"/>
-            <ereg regexp=".*" search_in="hdr" header="Via:" occurrence="1" assign_to="via_1"/>
-            <ereg regexp=".*" search_in="hdr" header="Via:" occurrence="2" assign_to="via_2"/>
-            <ereg regexp=".*" search_in="hdr" header="Record-Route:"  occurrence="1" assign_to="route_1"/>
-            <assignstr assign_to="local_tag" value="[pid]-[call_number]" />
-        </action>
-        """
-
-    call = {
-        "BASIC": __basicKamActions
-    }
-
-    def __init__(self, action_type):
-        self.via = 0
-        self.routes = 0
-
-        self.action = self.call[action_type](self)
-
-    # Return constructed actions from variables we've stored
-    def get_routes(self):
-        routes = ""
-        for i in range(self.routes):
-            routes += f"Record-Route: [$route_{i+1}]\n"
-        return routes
-
-    def get_via(self):
-        via = ""
-        for i in range(self.via):
-            via += f"Via: [$via_{i+1}]\n"
-        return via
-    
-    def use_via(self, method):
-        NOT_ALLOWED_METHODS = ["183", "180", "100"]
-
-        for mth in NOT_ALLOWED_METHODS:
-            if mth in method:
-                return False
-            
-        return True
 
 class Methods:
 
@@ -85,7 +42,7 @@ class Methods:
         Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
         {arguments["routes"]}
         From: sipp <sip:{arguments["caller"]}@[local_ip]:[local_port]>;tag=[pid]-[call_number]
-        To: sut <sip:[service]@[remote_ip]:[remote_port]>
+        To: sut <sip:{arguments["callee"]}@[remote_ip]:[remote_port]>
         Call-ID: [call_id]
         CSeq: [cseq] INVITE
         Supported: 100rel
@@ -103,7 +60,7 @@ class Methods:
         return f"""
         <![CDATA[
             ACK [next_url] SIP/2.0
-            Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-{sipp_agent.counter}]
+            Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-{sipp_agent.get_counter()}]
             [last_From:]
             [last_To:]
             [last_Call-ID:]
@@ -117,7 +74,7 @@ class Methods:
             {arguments["sdp"]}
         ]]>
         """
-    
+
         # TODO: we can insert an audio stream here if we want using:
         """
         <action>
@@ -358,18 +315,18 @@ class Methods:
         ]]>
         """
     call = {
-    "INVITE": __INVITE,
-    "ACK": __ACK,
-    "BYE": __BYE,
-    "CANCEL": __CANCEL,
-    "REGISTER": __REGISTER,
-    "OPTIONS": __OPTIONS,
-    "PRACK": __PRACK,
-    "SUBSCRIBE": __SUBSCRIBE,
-    "NOTIFY": __NOTIFY,
-    "PUBLISH": __PUBLISH,
-    "INFO": __INFO,
-    "REFER": __REFER,
-    "MESSAGE": __MESSAGE,
-    "UPDATE": __UPDATE
+        "INVITE": __INVITE,
+        "ACK": __ACK,
+        "BYE": __BYE,
+        "CANCEL": __CANCEL,
+        "REGISTER": __REGISTER,
+        "OPTIONS": __OPTIONS,
+        "PRACK": __PRACK,
+        "SUBSCRIBE": __SUBSCRIBE,
+        "NOTIFY": __NOTIFY,
+        "PUBLISH": __PUBLISH,
+        "INFO": __INFO,
+        "REFER": __REFER,
+        "MESSAGE": __MESSAGE,
+        "UPDATE": __UPDATE
     }
