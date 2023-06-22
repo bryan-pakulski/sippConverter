@@ -74,13 +74,19 @@ class SIP_Parser:
         msg.src = packet.ip._all_fields["ip.src"]
         msg.dst = packet.ip._all_fields["ip.dst"]
 
-        # Extract SDP from packet
+        # Extract full header, including sdp
+        msg.header = packet.sip._all_fields["sip.msg_hdr"].replace(
+            "\\xd\\xa", '\n')
+
+        # Extract SDP from packet, strip sdp from header
         if "sip.Content-Type" in packet.sip._all_fields and packet.sip._all_fields["sip.Content-Type"] == "application/sdp":
             field_list = packet['sip']._all_fields
 
             # Replace media fields and ip addresses with sipp friendly variables
             field_list['sdp.media'] = field_list['sdp.media'].replace(
                 field_list['sdp.media.port_string'], "[media_port]")
+
+            msg.header = field_list['sip.msg_hdr'].split("v=")[0]
             sdp_str = "v=" + field_list['sip.msg_hdr'].split("v=")[1]
 
             ip_addr_regex = re.compile(
@@ -88,8 +94,7 @@ class SIP_Parser:
             sdp_str = re.sub(ip_addr_regex, "[local_ip]", sdp_str)
             sdp_str = re.sub(
                 "m=audio\s\d+", "m=audio [media_port]", sdp_str)
-            print(sdp_str.split("\\xd\\xa"))
-            msg.sdp = "\n".join(sdp_str.split("\\xd\\xa"))
+            msg.sdp = sdp_str.replace("\\xd\\xa", '\n')
 
         # On situations where we don't use a sip.Method, we will get the status code i.e. 100 TRYING, 183 etc...
         if "sip.Method" not in packet.sip._all_fields:
@@ -99,10 +104,6 @@ class SIP_Parser:
                 msg.method = packet.sip._all_fields["sip.Status-Code"]
         else:
             msg.method = packet.sip._all_fields["sip.Method"]
-
-        # Extract header
-        msg.header = "\n".join(
-            packet.sip._all_fields["sip.msg_hdr"].split("\\xd\\xa"))
 
         if (not msg.validate()):
             raise ValueError("failed to validate!", msg.as_string())
@@ -115,7 +116,7 @@ class SIP_Parser:
         print(f"{agent.CLIENT}: ", self.uac_ip)
         print(f"{agent.SERVER}: ", self.uas_ip)
 
-        capture = pyshark.FileCapture(input_file)
+        capture = pyshark.FileCapture(input_file, display_filter="sip")
         for packet in capture:
             try:
                 if hasattr(packet, 'sip'):
