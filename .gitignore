@@ -3,6 +3,7 @@ venv/
 
 captures/
 scenarios/
+docker/test
 
 __pycache__
 *.pyc

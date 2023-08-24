@@ -4,6 +4,9 @@
 - pyshark
 - xmlformatter
 
+## System Requirements:
+- tshark (part of the wireshark-cli package)
+
 ## Usage:
 
 Open your pcap file in wireshark or your sip explorer of choice and identify which addresses you would like to use as your calling / terminating parties
@@ -30,8 +33,6 @@ Pass in the pcap / calling ip / terminating ip to the script, after generation i
                         B number
   -n SCEN_NAME, --scen_name SCEN_NAME
                         SIPp scenario name
-  -m ACTION_SET, --action_set ACTION_SET
-                        Generative actions to use
 ```
 
 ## How it works:

@@ -40,12 +40,10 @@ class Methods:
     <![CDATA[  
         INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
         Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
-        {arguments["routes"]}
         From: sipp <sip:{arguments["caller"]}@[local_ip]:[local_port]>;tag=[pid]-[call_number]
         To: sut <sip:{arguments["callee"]}@[remote_ip]:[remote_port]>
         Call-ID: [call_id]
         CSeq: [cseq] INVITE
-        Supported: 100rel
         Contact: <sip:{arguments["caller"]}@[local_ip]:[local_port];user=phone>
         Allow: REGISTER,OPTIONS,INVITE,ACK,CANCEL,BYE,NOTIFY,PRACK,REFER,INFO,SUBSCRIBE,UPDATE
         Subject: {arguments["scenario_name"]}
@@ -64,7 +62,6 @@ class Methods:
             [last_From:]
             [last_To:]
             [last_Call-ID:]
-            {arguments["routes"]}
             CSeq: [cseq] ACK
             Max-Forwards: 70
             Subject: {arguments["scenario_name"]}
@@ -90,7 +87,6 @@ class Methods:
             From: sipp  <sip:{arguments["caller"]}@[local_ip]:[local_port]>;tag=[pid]-[call_number]
             To: sut  <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
             [last_Call-ID:]
-            [routes]
             CSeq: [cseq] BYE
             Contact: <sip:{arguments["caller"]}@[local_ip]:[local_port]>
             Reason: Q.850;cause=16;text="Terminated"
@@ -163,7 +159,6 @@ class Methods:
             [last_From:]
             [last_To:]
             [last_Call-ID:]
-            {arguments["routes"]}
             CSeq: [cseq] PRACK
             Max-Forwards: 70
             {"Content-Type: application/sdp" if arguments["sdp"] != "" else ""}

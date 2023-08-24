@@ -96,6 +96,12 @@ class SIP_Parser:
                 "m=audio\s\d+", "m=audio [media_port]", sdp_str)
             msg.sdp = sdp_str.replace("\\xd\\xa", '\n')
 
+            # Format SDP if required, newer versions of python seem to concatenate SDP on a single line
+            sdp_pattern = r'\s(\w+)='
+            matches = re.findall(sdp_pattern, msg.sdp)
+            msg.sdp = re.sub(sdp_pattern, '\n\g<1>=', msg.sdp)
+
+
         # On situations where we don't use a sip.Method, we will get the status code i.e. 100 TRYING, 183 etc...
         if "sip.Method" not in packet.sip._all_fields:
             if msg.direction == DIR.SEND:
@@ -172,14 +178,14 @@ class SIP_Parser:
                 writer.recv_response(scenario.method)
 
     # Create SIPP XML scenarios with the extracted dictionary
-    def save_pcap_to_xml(self, scenario_name, a_party, b_party, action_set):
+    def save_pcap_to_xml(self, scenario_name, a_party, b_party):
 
         if self.pcap_dict == None:
             raise Exception(
                 "No pcap dictionary loaded! has load_pcap_as_dict been called?")
 
-        uac_writer = sipp_agent.SIPP_Agent(a_party, scenario_name, action_set)
-        uas_writer = sipp_agent.SIPP_Agent(b_party, scenario_name, action_set)
+        uac_writer = sipp_agent.SIPP_Agent(a_party, scenario_name)
+        uas_writer = sipp_agent.SIPP_Agent(b_party, scenario_name)
 
         # Determine the type of each packet for SIPP i.e. send / recv / response
         self.__send_to_writer(

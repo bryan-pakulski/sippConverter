@@ -1,25 +1,11 @@
 import sipp.agent
 from sipp.sip_methods import Methods
-from sipp.sipp_actions import Actions
 
 import xmlformatter
 
 # This agent class works to convert the dictionary information passed from the parser into XML that SIPP can understand
-
-
 class SIPP_Agent:
-
-    # SIP messsages we will record route on
-    RRS_CODES = [
-        "183",
-        "180",
-        "INVITE"
-    ]
-
-    # XML Tag to record route
-    RECORD_ROUTE = "rrs=\"true\""
-
-    def __init__(self, number, scenario_name, action_set):
+    def __init__(self, number, scenario_name):
 
         self.number = number
         self.scenario_name = scenario_name
@@ -28,12 +14,9 @@ class SIPP_Agent:
         self.scenario = []
 
         # XML Generators
-        self.sip_actions = Actions(action_set)
         self.sip_methods = Methods()
 
-        self.have_saved_routes = False
         self.message_counter = 0
-        self.use_actions = False
 
     def add_scenario(self, content):
         self.scenario.append(content)
@@ -49,24 +32,7 @@ class SIPP_Agent:
     def is_method(self, method):
         return method in self.sip_methods.call
 
-    # Determine if we should use Record-Route for a given response code
-    def use_rrs(self, response_code):
-
-        for code in self.RRS_CODES:
-            if (code in response_code):
-                self.have_saved_routes = True
-
-        # TODO: in the apply class make it so that actions can be defined per method i.e. lookup table
-        # We want to apply actions on our invite
-        if "INVITE" in response_code:
-            self.use_actions = True
-
-        return self.have_saved_routes
-
     def send(self, method, arguments):
-        if (self.have_saved_routes):
-            arguments["routes"] = "[routes]"
-
         self.add_scenario(f"""
         <send>
             {self.sip_methods.call[method](self, arguments)}
@@ -76,17 +42,13 @@ class SIPP_Agent:
 
     def recv(self, method):
         self.add_scenario(f"""
-        <recv request="{method}" {self.RECORD_ROUTE if self.use_rrs(method) else ""}>
-        {self.sip_actions.xml() if self.use_rrs(method) else ""}
-        </recv>
+        <recv request="{method}"></recv>
         """)
         self.increment()
 
     def recv_response(self, response_code, optional="false"):
         self.add_scenario(f"""
-        <recv response="{response_code}" {self.RECORD_ROUTE if self.use_rrs(response_code) else ""}
-            optional="{optional}">
-        </recv>
+        <recv response="{response_code}" optional="{optional}"></recv>
         """)
         self.increment()
 
@@ -95,12 +57,10 @@ class SIPP_Agent:
         <send>
             <![CDATA[
                 {status_line}
-                {self.sip_actions.get_via() if self.sip_actions.use_via(status_line) else "[last_Via:]"}
                 [last_From:]
-                [last_To:];{"tag=[$local_tag]" if self.use_actions else "tag=[call_number]"}
-                {self.sip_actions.get_routes() if "200" not in status_line else "[routes]"}
+                [last_To:];tag=[call_number]
                 [last_Call-ID:]
-                {"CSeq: [$invite_cseq]" if self.use_actions and "200" in status_line else "[last_CSeq:]"}
+                [last_CSeq:]
                 Contact: <sip:[local_ip]:[local_port];transport=[transport]>
                 {"Content-Type: application/sdp" if arguments["sdp"] != "" else ""}
                 Content-Length: [len]
@@ -169,7 +129,6 @@ class SIPP_Agent:
         for action in self.scenario:
             output_string += self.parse_scenario(action)
         output_string += header_close
-        formatter = xmlformatter.Formatter(indent="4", correct=True)
 
         with open(outfile, 'w') as output:
-            output.write(formatter.format_string(output_string).decode())
+            output.write(output_string)

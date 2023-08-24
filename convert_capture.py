@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import argparse
 from sipp.parser import SIP_Parser
 
@@ -12,14 +14,12 @@ def main():
                         help="IP address of the A Party Caller", required=True)
     parser.add_argument("-s", "--server",
                         help="IP address of the B Party Caller", required=True)
-    parser.add_argument("-a", "--a_number", help="A number",
+    parser.add_argument("-a", "--a_number", help="A number (optional)",
                         default="999912344321")
-    parser.add_argument("-b", "--b_number", help="B number",
+    parser.add_argument("-b", "--b_number", help="B number (optional)",
                         default="888812344321")
-    parser.add_argument("-n", "--scen_name", help="SIPp scenario name",
+    parser.add_argument("-n", "--scen_name", help="SIPp scenario name (optional)",
                         default="SIPp Scenario")
-    parser.add_argument("-m", "--action_set", help="Generative actions to use, see ReadMe.md for all options",
-                        default="BASIC")
 
     args = parser.parse_args()
 
@@ -27,7 +27,7 @@ def main():
     parser = SIP_Parser(args.client, args.server)
     parser.load_pcap_as_dict(args.input_file)
     parser.save_pcap_to_xml(args.a_number, args.b_number,
-                            args.scen_name, args.action_set)
+                            args.scen_name)
 
 
 if __name__ == "__main__":
