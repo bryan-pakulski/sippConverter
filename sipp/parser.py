@@ -61,18 +61,18 @@ class SIP_Parser:
         }
 
     # Extract useful information from packet
-    def __parse_packet(self, packet, address):
+    def __parse_packet(self, packet, ip_layer, address):
         msg = message()
 
         # Get direction of packet
-        if address in packet.ip._all_fields["ip.src"]:
+        if address in ip_layer._all_fields["ip.src"]:
             msg.direction = DIR.SEND
-        elif address in packet.ip._all_fields["ip.dst"]:
+        elif address in ip_layer._all_fields["ip.dst"]:
             msg.direction = DIR.RECV
 
         # Get source and destination
-        msg.src = packet.ip._all_fields["ip.src"]
-        msg.dst = packet.ip._all_fields["ip.dst"]
+        msg.src = ip_layer._all_fields["ip.src"]
+        msg.dst = ip_layer._all_fields["ip.dst"]
 
         # Extract full header, including sdp
         msg.header = packet.sip._all_fields["sip.msg_hdr"].replace(
@@ -125,26 +125,34 @@ class SIP_Parser:
         capture = pyshark.FileCapture(input_file, display_filter="sip")
         for packet in capture:
             try:
-                if hasattr(packet, 'sip'):
-                    try:
-                        # Capture A party packets
-                        if self.uac_ip in packet.ip._all_fields["ip.src"] or self.uac_ip in packet.ip._all_fields["ip.dst"]:
-                            self.pcap_dict[agent.CLIENT].append(
-                                self.__parse_packet(packet, self.uac_ip))
+                if hasattr(packet, "sip"):
+                    # We can have multiple ip layers...
+                    for ip_layer in packet.get_multiple_layers('ip'):
+                        try:
+                            # Capture A party packets
+                            if self.uac_ip in ip_layer._all_fields["ip.src"] or self.uac_ip in ip_layer._all_fields["ip.dst"]:
+                                self.pcap_dict[agent.CLIENT].append(
+                                    self.__parse_packet(packet, ip_layer, self.uac_ip))
 
-                        # Capture B party packets
-                        if self.uas_ip in packet.ip._all_fields["ip.src"] or self.uas_ip in packet.ip._all_fields["ip.dst"]:
-                            self.pcap_dict[agent.SERVER].append(
-                                self.__parse_packet(packet, self.uas_ip))
+                            # Capture B party packets
+                            if self.uas_ip in ip_layer._all_fields["ip.src"] or self.uas_ip in ip_layer._all_fields["ip.dst"]:
+                                self.pcap_dict[agent.SERVER].append(
+                                    self.__parse_packet(packet, ip_layer, self.uas_ip))
 
-                    except Exception as e:
-                        print("Invalid SIP packet!", e)
+                        except Exception as e:
+                            print("Invalid SIP packet layer!", e)
             except OSError:
                 pass
+            
+        err = ""
+        if len(self.pcap_dict[agent.CLIENT]) == 0:
+            err += f"{self.uac_ip}"
+        if len(self.pcap_dict[agent.SERVER]) == 0:
+            err += f" {self.uas_ip}"
 
-        if len(self.pcap_dict[agent.CLIENT]) == 0 or len(self.pcap_dict[agent.SERVER]) == 0:
+        if (err != ""):
             raise Exception(
-                f"No SIP-enabled packets matching {self.uac_ip} or {self.uas_ip} found in capture!")
+                f"No SIP-enabled packets matching {err} found in capture!")
         else:
             print(
                 f"Captured {len(self.pcap_dict[agent.CLIENT])} UAC packets & {len(self.pcap_dict[agent.SERVER])} UAS packets")

@@ -1,8 +1,13 @@
 ## Python Requirements:
 
+Set up with `pip install -r requirements.txt`
+
 - python3
 - pyshark
 - xmlformatter
+- glfw
+- imgui[glfw]
+- numpy
 
 ## System Requirements:
 - tshark (part of the wireshark-cli package)
