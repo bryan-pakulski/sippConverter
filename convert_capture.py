@@ -20,11 +20,12 @@ def main():
                         default="888812344321")
     parser.add_argument("-n", "--scen_name", help="SIPp scenario name (optional)",
                         default="SIPp Scenario")
-
+    parser.add_argument("-p", "--proxy", help="Flag to enable proxy support in generated XML, for use with kamailio or some other SIP proxy in between A/B parties",
+                        default=False, action="store_true")
     args = parser.parse_args()
 
     # Load and parse pcap file
-    parser = SIP_Parser(args.client, args.server)
+    parser = SIP_Parser(args.client, args.server, args.proxy)
     parser.load_pcap_as_dict(args.input_file)
     parser.save_pcap_to_xml(args.a_number, args.b_number,
                             args.scen_name)

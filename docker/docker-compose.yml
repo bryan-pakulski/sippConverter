@@ -4,10 +4,6 @@ services:
     image: ctaloi/sipp
     depends_on:
       - sipp_uas
-    ports:
-      - '5080:5080'
-    expose:
-      - '5080:5081'
     volumes:
       - ./test/:/test
       - ./scripts/client.sh:/run.sh
@@ -18,10 +14,6 @@ services:
 
   sipp_uas:
     image: ctaloi/sipp
-    ports:
-      - '5081:5081'
-    expose:
-      - '5080:5081'
     volumes:
       - ./test/:/test
       - ./scripts/server.sh:/run.sh

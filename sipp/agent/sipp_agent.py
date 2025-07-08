@@ -5,7 +5,7 @@ import xmlformatter
 
 # This agent class works to convert the dictionary information passed from the parser into XML that SIPP can understand
 class SIPP_Agent:
-    def __init__(self, number, scenario_name):
+    def __init__(self, number, scenario_name, proxy, is_uac):
 
         self.number = number
         self.scenario_name = scenario_name
@@ -17,6 +17,10 @@ class SIPP_Agent:
         self.sip_methods = Methods()
 
         self.message_counter = 0
+
+        self.proxy = proxy
+        self.first_invite = True
+        self.is_uas = not is_uac
 
     def add_scenario(self, content):
         self.scenario.append(content)
@@ -33,35 +37,64 @@ class SIPP_Agent:
         return method in self.sip_methods.call
 
     def send(self, method, arguments):
+        arguments["proxy"] = self.proxy
         self.add_scenario(f"""
         <send>
             {self.sip_methods.call[method](self, arguments)}
         </send>
         """)
+    
+        # UAS will potentially send 100 trying
+        if method == "INVITE":
+            self.add_scenario(f"""
+                              <recv response="100" optional="true"></recv>
+                              """)
         self.increment()
 
     def recv(self, method):
+        # This only needs to happen on the first invite
+        if self.proxy and method == "INVITE" and self.first_invite:
+            action = """
+            <action>
+                <ereg regexp="sip:.*@" search_in="hdr" header="To: " assign_to="req_to" />
+            </action>
+            """
+            self.first_invite = False
+        else:
+            action = ""
+
         self.add_scenario(f"""
-        <recv request="{method}"></recv>
+        <recv request="{method}">{action}</recv>
         """)
         self.increment()
 
     def recv_response(self, response_code, optional="false"):
+        if (response_code in ["180", "183", "200"]) and self.proxy:
+            rrs = "rrs=\"true\""
+        else:
+            rrs = ""
+
         self.add_scenario(f"""
-        <recv response="{response_code}" optional="{optional}"></recv>
+        <recv response="{response_code}" optional="{optional}" {rrs}></recv>
         """)
         self.increment()
 
-    def send_response(self, status_line, arguments):
+    def send_response(self, response_code, arguments):
+        if self.proxy and self.is_uas:
+            contact = "[$req_to][local_ip]:[local_port];transport=[transport]"
+        else:
+            contact = "<sip:[local_ip]:[local_port];transport=[transport]>"
         self.add_scenario(f"""
         <send>
             <![CDATA[
-                {status_line}
+                {response_code}
+                {"[last_Via:]" if self.proxy else ""}
                 [last_From:]
                 [last_To:];tag=[call_number]
                 [last_Call-ID:]
                 [last_CSeq:]
-                Contact: <sip:[local_ip]:[local_port];transport=[transport]>
+                {"[last_Record-Route:]" if self.proxy else ""}
+                Contact: {contact} 
                 {"Content-Type: application/sdp" if arguments["sdp"] != "" else ""}
                 Content-Length: [len]
                 
@@ -69,6 +102,7 @@ class SIPP_Agent:
             ]]>
         </send>
         """)
+
         self.increment()
 
     def wait(self, time_ms):

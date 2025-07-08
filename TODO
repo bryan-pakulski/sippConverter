@@ -1,4 +1,6 @@
 - Fix SDP parsing issue on newer python? all on one line
 - Add GUI to modify generated sipp xml scripts:
 https://github.com/pyimgui/pyimgui/blob/master/doc/examples/integrations_glfw3.py
-- Remove kamailio actions (record route etc...) KISS
+- gather timestamps for each packet and make sure to sleep for the correct amount of time
+
+

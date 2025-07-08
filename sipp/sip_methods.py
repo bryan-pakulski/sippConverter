@@ -57,11 +57,12 @@ class Methods:
     def __ACK(sipp_agent, arguments):
         return f"""
         <![CDATA[
-            ACK [next_url] SIP/2.0
+            ACK {"[next_url]" if arguments["proxy"] else "sip:[service]@[remote_ip]:[remote_port]"} SIP/2.0
             Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-{sipp_agent.get_counter()}]
             [last_From:]
             [last_To:]
             [last_Call-ID:]
+            {"[routes]" if arguments["proxy"] else ""}
             CSeq: [cseq] ACK
             Max-Forwards: 70
             Subject: {arguments["scenario_name"]}

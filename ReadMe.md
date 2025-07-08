@@ -2,14 +2,11 @@
 
 Set up with `pip install -r requirements.txt`
 
-- python3
 - pyshark
 - xmlformatter
-- glfw
-- imgui[glfw]
-- numpy
 
 ## System Requirements:
+- python3
 - tshark (part of the wireshark-cli package)
 
 ## Usage:
@@ -19,7 +16,7 @@ Open your pcap file in wireshark or your sip explorer of choice and identify whi
 Pass in the pcap / calling ip / terminating ip to the script, after generation is complete you should have a `UAC.xml` and `UAS.xml` file that you can use to generate call scenarios with.
 
 ```
-./generateSIPp.py -i <capture.pcap> -c <A_party_ip> -s <B_party_ip>
+./convert_capture.py -i <capture.pcap> -c <A_party_ip> -s <B_party_ip>
 ```
 
 ## Options:
@@ -38,6 +35,8 @@ Pass in the pcap / calling ip / terminating ip to the script, after generation i
                         B number
   -n SCEN_NAME, --scen_name SCEN_NAME
                         SIPp scenario name
+  -p PROXY, --proxy PROXY
+                        Flag to enable proxy support in generated XML, for use with kamailio or some other SIP proxy in between A/B parties
 ```
 
 ## How it works:
@@ -45,17 +44,6 @@ Pass in the pcap / calling ip / terminating ip to the script, after generation i
 This is a very naive script that attempts to deconstruct the sip messaging between the A / B party. It will parse the pcap file and categorise packets as SENT / RECEIVED (whilst stripping unecessary information) for each side of the call. It will also strip the raw SDP's from the signalling and include them with the captured packet information.
 
 The marked packets are converted to sipp xml using a lookup with definitions for SIP codes / methods & responses. This has a lot of assumptions around the signalling and uses a basic approach to construct the messages, this is where some manual effort may need to be involved to tweak the scenario to work exactly as you want. An editing GUI is provided to make this easier.
-
-## SIPP Logic:
-
-One of the strengths of SIPp is the ability to parse messages and construct responses based on regex expressions / variables etc..
-
-This is somewhat captured in this application with the use of the GUI, it is difficult to strip this information out of a capture dynamically so it is left as an exercise for the user to
-add back into the generated scenarios.
-
-## GUI
-
-TODO:
 
 ## Testing Scenarios
 
@@ -69,7 +57,7 @@ Note that this is a very simple direct call without any hops inbetween the two p
 #### A Party:
 
 ```
-sipp -m 1 -sf UAC.xml -base_cseq 1 -i <local_ip> -t u1 -s <called_number> <kamailio_ip_address> -p 5060
+sipp -m 1 -sf UAC.xml -base_cseq 1 -i <local_ip> -t u1 -s <called_number> -p 5060 <peer_ip_address>
 ```
 
 #### B Party:
@@ -78,6 +66,14 @@ sipp -m 1 -sf UAC.xml -base_cseq 1 -i <local_ip> -t u1 -s <called_number> <kamai
 sipp --aa -base_cseq 1 -i <local_ip> -sf UAS.xml -p 5060
 ```
 
+#### WITH PROXY:
+
+```
+sipp -m 1 -sf UAC.xml -base_cseq 1 -i <local_ip> -t u1 -s <called_number> -p 5060 <proxy_ip_address>
+```
+```
+sipp --aa -base_cseq 1 -i <local_ip> -sf UAS.xml -p 5060 <proxy_ip_address>
+```
 
 ## Limitations:
 

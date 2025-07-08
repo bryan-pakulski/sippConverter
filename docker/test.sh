@@ -1,5 +1,8 @@
 #!/bin/bash
 
+export client_filepath=""
+export server_filepath=""
+
 function usage()
 {
     echo "Usage: $0 -c <client_filepath> -s <server_filepath>"

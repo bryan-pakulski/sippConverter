@@ -52,13 +52,14 @@ class SIP_Parser:
 
     OUTPUT_DIRECTORY = "scenarios"
 
-    def __init__(self, client_addr, server_addr):
+    def __init__(self, client_addr, server_addr, proxy):
         self.uac_ip = client_addr
         self.uas_ip = server_addr
         self.pcap_dict = {
             agent.CLIENT: [],
             agent.SERVER: []
         }
+        self.proxy = proxy
 
     # Extract useful information from packet
     def __parse_packet(self, packet, ip_layer, address):
@@ -73,33 +74,34 @@ class SIP_Parser:
         # Get source and destination
         msg.src = ip_layer._all_fields["ip.src"]
         msg.dst = ip_layer._all_fields["ip.dst"]
+        
+        # Extract SDP / headers
+        try:
+            if "sip.Content-Type" in packet.sip._all_fields and packet.sip._all_fields["sip.Content-Type"] == "application/sdp":
+                msg.header = packet.sip._all_fields["sip.msg_hdr"].replace("\\xd\\xa", '\n')
+                field_list = packet['sip']._all_fields
 
-        # Extract full header, including sdp
-        msg.header = packet.sip._all_fields["sip.msg_hdr"].replace(
-            "\\xd\\xa", '\n')
+                # Replace media fields and ip addresses with sipp friendly variables
+                field_list['sdp.media'] = field_list['sdp.media'].replace(
+                    field_list['sdp.media.port_string'], "[media_port]")
+                
+                hex_sdp_str = packet.sip.msg_body.__str__().replace(":", '')
+                sdp_str = bytes.fromhex(hex_sdp_str).decode('ascii')
 
-        # Extract SDP from packet, strip sdp from header
-        if "sip.Content-Type" in packet.sip._all_fields and packet.sip._all_fields["sip.Content-Type"] == "application/sdp":
-            field_list = packet['sip']._all_fields
+                msg.header = field_list['sip.msg_hdr']
 
-            # Replace media fields and ip addresses with sipp friendly variables
-            field_list['sdp.media'] = field_list['sdp.media'].replace(
-                field_list['sdp.media.port_string'], "[media_port]")
+                ip_addr_regex = re.compile(
+                    r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
+                sdp_str = re.sub(ip_addr_regex, "[local_ip]", sdp_str)
+                sdp_str = re.sub("m=audio\\s\\d+", "m=audio [media_port]", sdp_str)
+                msg.sdp = sdp_str.replace("\\xd\\xa", '\n')
 
-            msg.header = field_list['sip.msg_hdr'].split("v=")[0]
-            sdp_str = "v=" + field_list['sip.msg_hdr'].split("v=")[1]
-
-            ip_addr_regex = re.compile(
-                r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
-            sdp_str = re.sub(ip_addr_regex, "[local_ip]", sdp_str)
-            sdp_str = re.sub(
-                "m=audio\s\d+", "m=audio [media_port]", sdp_str)
-            msg.sdp = sdp_str.replace("\\xd\\xa", '\n')
-
-            # Format SDP if required, newer versions of python seem to concatenate SDP on a single line
-            sdp_pattern = r'\s(\w+)='
-            matches = re.findall(sdp_pattern, msg.sdp)
-            msg.sdp = re.sub(sdp_pattern, '\n\g<1>=', msg.sdp)
+                # Format SDP if required, newer versions of python seem to concatenate SDP on a single line
+                sdp_pattern = r'\s(\w+)='
+                msg.sdp = re.sub(sdp_pattern, '\\n\\g<1>=', msg.sdp)
+        except Exception as e:
+            print("Failed in retrieving headers & SDP in packet!", e)
+            msg.sdp = ""
 
 
         # On situations where we don't use a sip.Method, we will get the status code i.e. 100 TRYING, 183 etc...
@@ -128,19 +130,19 @@ class SIP_Parser:
                 if hasattr(packet, "sip"):
                     # We can have multiple ip layers...
                     for ip_layer in packet.get_multiple_layers('ip'):
-                        try:
-                            # Capture A party packets
-                            if self.uac_ip in ip_layer._all_fields["ip.src"] or self.uac_ip in ip_layer._all_fields["ip.dst"]:
-                                self.pcap_dict[agent.CLIENT].append(
-                                    self.__parse_packet(packet, ip_layer, self.uac_ip))
+                        #try:
+                        # Capture A party packets
+                        if self.uac_ip in ip_layer._all_fields["ip.src"] or self.uac_ip in ip_layer._all_fields["ip.dst"]:
+                            self.pcap_dict[agent.CLIENT].append(
+                                self.__parse_packet(packet, ip_layer, self.uac_ip))
 
-                            # Capture B party packets
-                            if self.uas_ip in ip_layer._all_fields["ip.src"] or self.uas_ip in ip_layer._all_fields["ip.dst"]:
-                                self.pcap_dict[agent.SERVER].append(
-                                    self.__parse_packet(packet, ip_layer, self.uas_ip))
+                        # Capture B party packets
+                        if self.uas_ip in ip_layer._all_fields["ip.src"] or self.uas_ip in ip_layer._all_fields["ip.dst"]:
+                            self.pcap_dict[agent.SERVER].append(
+                                self.__parse_packet(packet, ip_layer, self.uas_ip))
 
-                        except Exception as e:
-                            print("Invalid SIP packet layer!", e)
+                        #except Exception as e:
+                        #    print("Invalid SIP packet layer!", e)
             except OSError:
                 pass
             
@@ -186,14 +188,14 @@ class SIP_Parser:
                 writer.recv_response(scenario.method)
 
     # Create SIPP XML scenarios with the extracted dictionary
-    def save_pcap_to_xml(self, scenario_name, a_party, b_party):
+    def save_pcap_to_xml(self, a_party, b_party, scenario_name):
 
         if self.pcap_dict == None:
             raise Exception(
                 "No pcap dictionary loaded! has load_pcap_as_dict been called?")
 
-        uac_writer = sipp_agent.SIPP_Agent(a_party, scenario_name)
-        uas_writer = sipp_agent.SIPP_Agent(b_party, scenario_name)
+        uac_writer = sipp_agent.SIPP_Agent(a_party, scenario_name, self.proxy, True)
+        uas_writer = sipp_agent.SIPP_Agent(b_party, scenario_name, self.proxy, False)
 
         # Determine the type of each packet for SIPP i.e. send / recv / response
         self.__send_to_writer(
