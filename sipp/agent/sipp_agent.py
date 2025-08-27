@@ -44,11 +44,6 @@ class SIPP_Agent:
         </send>
         """)
     
-        # UAS will potentially send 100 trying
-        if method == "INVITE":
-            self.add_scenario(f"""
-                              <recv response="100" optional="true"></recv>
-                              """)
         self.increment()
 
     def recv(self, method):
@@ -73,6 +68,9 @@ class SIPP_Agent:
             rrs = "rrs=\"true\""
         else:
             rrs = ""
+
+        if (response_code in ["100"]):
+            optional = "true"
 
         self.add_scenario(f"""
         <recv response="{response_code}" optional="{optional}" {rrs}></recv>

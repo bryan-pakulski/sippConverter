@@ -77,18 +77,28 @@ class SIP_Parser:
         
         # Extract SDP / headers
         try:
-            if "sip.Content-Type" in packet.sip._all_fields and packet.sip._all_fields["sip.Content-Type"] == "application/sdp":
-                msg.header = packet.sip._all_fields["sip.msg_hdr"].replace("\\xd\\xa", '\n')
-                field_list = packet['sip']._all_fields
+            headers_dict = {}
+            
+            # Extract all fields from the SIP layer
+            for field_name in packet.sip.firld_names:
+                # Skip internal/special fields
+                if field_name.startswith("_"):
+                    continue
 
+                field_value = getattr(packet.sip, field_name)
+                header_name = field_name.replace("sip.", "")
+                headers_dict[header_name] = field_value
+
+            msg.header = headers_dict
+        except Exception as e:
+            print("Failed in retrieving headers!", e)
+
+        try:
+            if "sip.Content-Type" in packet.sip._all_fields and packet.sip._all_fields["sip.Content-Type"] == "application/sdp":
                 # Replace media fields and ip addresses with sipp friendly variables
-                field_list['sdp.media'] = field_list['sdp.media'].replace(
-                    field_list['sdp.media.port_string'], "[media_port]")
-                
                 hex_sdp_str = packet.sip.msg_body.__str__().replace(":", '')
                 sdp_str = bytes.fromhex(hex_sdp_str).decode('ascii')
 
-                msg.header = field_list['sip.msg_hdr']
 
                 ip_addr_regex = re.compile(
                     r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b')
@@ -100,7 +110,7 @@ class SIP_Parser:
                 sdp_pattern = r'\s(\w+)='
                 msg.sdp = re.sub(sdp_pattern, '\\n\\g<1>=', msg.sdp)
         except Exception as e:
-            print("Failed in retrieving headers & SDP in packet!", e)
+            print("Failed in retrieving SDP!", e)
             msg.sdp = ""
 
 
